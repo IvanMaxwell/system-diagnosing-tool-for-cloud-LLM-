@@ -1,0 +1,66 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "System Diagnostics API",
+    "version": "1.0.0",
+    "description": "Token-efficient Windows system diagnostics for cloud LLMs."
+  },
+  "servers": [
+    {"url": "http://localhost:8000"}
+  ],
+  "paths": {
+    "/query": {
+      "post": {
+        "operationId": "query_system",
+        "summary": "Query system diagnostics with natural language intent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "intent": {"type": "string"},
+                  "model": {"type": "string", "default": "generic"}
+                },
+                "required": ["intent"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSC-compressed diagnostic response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string"},
+                    "category": {"type": "string"},
+                    "narrative": {"type": "string"},
+                    "anomalies": {"type": "array"},
+                    "top_processes": {"type": "array"},
+                    "prior_occurrences": {"type": "integer"},
+                    "timestamp": {"type": "string"},
+                    "token_estimate": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [{"ApiKeyAuth": []}]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    }
+  }
+}

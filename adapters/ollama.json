@@ -1,0 +1,21 @@
+{
+  "type": "function",
+  "function": {
+    "name": "query_system",
+    "description": "Query real-time Windows system diagnostics via local service. Returns token-efficient structured narrative. Use when user asks about system performance, memory, CPU, disk, or running processes.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "description": "What system information do you need? Plain English."
+        },
+        "model": {
+          "type": "string",
+          "default": "ollama"
+        }
+      },
+      "required": ["intent"]
+    }
+  }
+}

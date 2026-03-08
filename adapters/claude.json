@@ -1,0 +1,20 @@
+{
+  "name": "query_system",
+  "description": "Query real-time Windows system diagnostics. Returns a compressed, token-efficient narrative about system health. Use this when the user asks about system performance, running processes, memory, disk, CPU, or hardware.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "intent": {
+        "type": "string",
+        "description": "Natural language description of what system information you need. Examples: 'why is my system slow', 'what processes are running', 'check memory usage', 'get hardware specs'"
+      },
+      "model": {
+        "type": "string",
+        "enum": ["claude", "openai", "gemini", "ollama", "generic"],
+        "description": "Identifier for the calling model. Use 'claude'.",
+        "default": "claude"
+      }
+    },
+    "required": ["intent"]
+  }
+}

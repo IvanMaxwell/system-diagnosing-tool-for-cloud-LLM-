@@ -1,0 +1,22 @@
+{
+  "type": "function",
+  "function": {
+    "name": "query_system",
+    "description": "Query real-time Windows system diagnostics. Returns a compressed, token-efficient narrative about system health. Use when the user asks about CPU, RAM, disk, processes, or hardware.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "description": "Natural language description of what system information you need."
+        },
+        "model": {
+          "type": "string",
+          "enum": ["claude", "openai", "gemini", "ollama", "generic"],
+          "default": "openai"
+        }
+      },
+      "required": ["intent"]
+    }
+  }
+}

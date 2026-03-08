@@ -1,0 +1,18 @@
+{
+  "name": "query_system",
+  "description": "Query real-time Windows system diagnostics. Returns a compressed, token-efficient narrative. Use when user asks about system performance, processes, memory, disk, CPU, or hardware specs.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "intent": {
+        "type": "string",
+        "description": "Natural language description of what system information is needed."
+      },
+      "model": {
+        "type": "string",
+        "description": "Calling model identifier. Use 'gemini'."
+      }
+    },
+    "required": ["intent"]
+  }
+}
