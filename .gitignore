@@ -1,0 +1,22 @@
+# Python Virtual Environment
+venv/
+.env
+
+# API Keys & Secrets
+config.yaml
+
+# Data & Logs
+app/state/
+logs/
+*.db
+*.log
+*.sqlite3
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/

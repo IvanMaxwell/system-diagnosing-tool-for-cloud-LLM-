@@ -1,19 +1,19 @@
 import logging
 import time
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.config import CONFIG
 from app.memory.store import init_db, write_event, get_recent_events, count_prior_occurrences
 from app.poller.engine import start_polling, get_latest_snapshot, is_polling_active
-from app.retrieval.intent import classify_intent
-from app.retrieval.fetcher import fetch_for_category
+from app.retrieval.intent import classify_intent, has_game_compat_check
+from app.retrieval.fetcher import fetch_for_category, fetch_for_categories
 from app.ssc.compressor import compress
 from app.dqe.prompt import build_dqe_prompt, build_rejection_prompt
 from app.dqe.sandbox import run_static_filter, execute_sandboxed, SafetyFilterError
@@ -60,48 +60,26 @@ app.add_middleware(
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
-def _verify_key(x_api_key: str) -> None:
+def _verify_key(x_api_key: str = Header(...)) -> None:
     if x_api_key != CONFIG.api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# ── Request models (plain dataclasses — no pydantic) ─────────────────────────
+# ── Request models ────────────────────────────────────────────────────────────
 
-@dataclass
-class QueryRequest:
+class QueryRequest(BaseModel):
     intent: str
     model: str = "generic"
+    use_ssc: bool = False
 
 
-@dataclass
-class DynamicSubmitRequest:
+class DynamicSubmitRequest(BaseModel):
     code: str
     explanation: str
 
 
-@dataclass
-class DynamicExecuteRequest:
+class DynamicExecuteRequest(BaseModel):
     approval_token: str
-
-
-# ── Body parsing helpers ──────────────────────────────────────────────────────
-
-async def _parse_body(request: Request) -> dict:
-    """Parse JSON body and return dict, raising 422 on bad JSON."""
-    try:
-        return await request.json()
-    except Exception:
-        raise HTTPException(status_code=422, detail="Request body must be valid JSON")
-
-
-def _require(data: dict, *fields: str) -> None:
-    """Raise 422 if any required field is missing from the parsed body."""
-    missing = [f for f in fields if f not in data or data[f] is None]
-    if missing:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Missing required field(s): {', '.join(missing)}",
-        )
 
 
 # ── Error handler ─────────────────────────────────────────────────────────────
@@ -140,21 +118,18 @@ async def snapshot(x_api_key: str = Header(...)) -> dict[str, Any]:
 
 
 @app.post("/query")
-async def query(request: Request, x_api_key: str = Header(...)) -> dict[str, Any]:
+async def query(body: QueryRequest, x_api_key: str = Header(...)) -> dict[str, Any]:
     _verify_key(x_api_key)
-    data = await _parse_body(request)
-    _require(data, "intent")
-    body = QueryRequest(intent=data["intent"], model=data.get("model", "generic"))
 
-    category = classify_intent(body.intent)
+    categories = classify_intent(body.intent)
 
-    if category == "no_match":
+    if categories == ["no_match"]:
         if not CONFIG.dqe.enabled:
             return {
                 "status": "no_match",
                 "code": "intent_unmatched",
                 "message": "Intent did not match any category. Enable DQE in config.yaml to handle custom queries.",
-                "dqe_prompt": None,
+                "dqe_prompt": build_dqe_prompt(body.intent) if CONFIG.dqe.enabled else None,
             }
         return {
             "status": "dqe_required",
@@ -166,12 +141,27 @@ async def query(request: Request, x_api_key: str = Header(...)) -> dict[str, Any
     if not snap:
         return {"status": "error", "code": "no_data", "message": "Polling not ready yet"}
 
-    relevant = fetch_for_category(snap, category)
-    prior = count_prior_occurrences(category)
-    result = compress(relevant, category, prior)
+    # If query asks about game compatibility, also pull in hardware + gpu + resource
+    if has_game_compat_check(body.intent):
+        for extra in ("gpu", "resource", "hardware"):
+            if extra not in categories:
+                categories.append(extra)
 
-    top_proc = result["top_processes"][0]["name"] if result["top_processes"] else ""
-    write_event(body.intent, category, result["narrative"], top_proc)
+    relevant = fetch_for_categories(snap, categories)
+    
+    if not body.use_ssc:
+        # Return raw data without narrative compression
+        return {
+            "status": "raw",
+            "categories": categories,
+            "data": relevant
+        }
+
+    prior = count_prior_occurrences(categories[0])
+    result = compress(relevant, categories, prior, intent=body.intent)
+
+    top_proc = result["top_processes"][0].get("name", "Unknown") if result.get("top_processes") else ""
+    write_event(body.intent, categories[0], result.get("narrative", ""), top_proc)
 
     return result
 
@@ -184,15 +174,13 @@ async def memory_recent(x_api_key: str = Header(...)) -> dict[str, Any]:
 
 
 @app.post("/query/dynamic")
-async def query_dynamic(request: Request, x_api_key: str = Header(...)) -> dict[str, Any]:
+async def query_dynamic(
+    body: DynamicSubmitRequest, x_api_key: str = Header(...)
+) -> dict[str, Any]:
     _verify_key(x_api_key)
 
     if not CONFIG.dqe.enabled:
         return {"status": "error", "code": "dqe_disabled", "message": "DQE is disabled in config.yaml"}
-
-    data = await _parse_body(request)
-    _require(data, "code", "explanation")
-    body = DynamicSubmitRequest(code=data["code"], explanation=data["explanation"])
 
     try:
         run_static_filter(body.code)
@@ -209,15 +197,13 @@ async def query_dynamic(request: Request, x_api_key: str = Header(...)) -> dict[
 
 
 @app.post("/query/dynamic/execute")
-async def query_dynamic_execute(request: Request, x_api_key: str = Header(...)) -> dict[str, Any]:
+async def query_dynamic_execute(
+    body: DynamicExecuteRequest, x_api_key: str = Header(...)
+) -> dict[str, Any]:
     _verify_key(x_api_key)
 
     if not CONFIG.dqe.enabled:
         return {"status": "error", "code": "dqe_disabled", "message": "DQE is disabled in config.yaml"}
-
-    data = await _parse_body(request)
-    _require(data, "approval_token")
-    body = DynamicExecuteRequest(approval_token=data["approval_token"])
 
     entry = consume_pending(body.approval_token)
     if not entry:

@@ -1,6 +1,0 @@
-2026-03-08 16:55:39,669 INFO app.poller.engine — Polling started — interval: 5s
-2026-03-08 16:55:39,670 INFO app.main — Service started
-2026-03-08 16:59:18,909 INFO app.main — Service shutting down
-2026-03-08 16:59:19,589 INFO app.poller.engine — Polling started — interval: 5s
-2026-03-08 16:59:19,589 INFO app.main — Service started
-2026-03-08 17:08:13,810 INFO app.main — Service shutting down

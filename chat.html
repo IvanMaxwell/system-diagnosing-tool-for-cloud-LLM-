@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Diagnostics Chat Interface</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #bb86fc;
+            --secondary-color: #03dac6;
+            --error-color: #cf6679;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --border-radius: 12px;
+            --transition-speed: 0.3s;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: var(--surface-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-right: 1px solid #333;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .sidebar h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .input-group input {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background-color: #2a2a2a;
+            color: white;
+            font-family: monospace;
+            outline: none;
+            transition: border-color var(--transition-speed);
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+            position: relative;
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        /* Hide scrollbar */
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 6px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 16px;
+            border-radius: var(--border-radius);
+            animation: slideIn 0.3s ease-out;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background-color: rgba(187, 134, 252, 0.15);
+            border: 1px solid rgba(187, 134, 252, 0.3);
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.system {
+            align-self: flex-start;
+            background-color: var(--surface-color);
+            border: 1px solid #333;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.error {
+            border-left: 4px solid var(--error-color);
+        }
+
+        .input-area {
+            padding: 20px 24px;
+            background-color: var(--surface-color);
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 12px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 14px 20px;
+            border-radius: 24px;
+            border: 1px solid #444;
+            background-color: #2a2a2a;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all var(--transition-speed);
+        }
+
+        .chat-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(187, 134, 252, 0.2);
+        }
+
+        .send-btn {
+            background-color: var(--primary-color);
+            color: #000;
+            border: none;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform var(--transition-speed), background-color var(--transition-speed);
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+            background-color: #d1b1ff;
+        }
+
+        .json-block {
+            background-color: #121212;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #a9b7c6;
+            overflow-x: auto;
+            margin-top: 8px;
+            border: 1px solid #333;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .status-badge.normal {
+            background-color: rgba(3, 218, 198, 0.2);
+            color: var(--secondary-color);
+        }
+
+        .status-badge.anomaly {
+            background-color: rgba(207, 102, 121, 0.2);
+            color: var(--error-color);
+        }
+
+        .status-badge.info {
+            background-color: rgba(187, 134, 252, 0.2);
+            color: var(--primary-color);
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .narrative-text {
+            white-space: pre-line;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .game-compat-card {
+            margin-top: 10px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: rgba(187, 134, 252, 0.08);
+            border: 1px solid rgba(187, 134, 252, 0.25);
+            white-space: pre-line;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            font-family: monospace;
+        }
+
+        .categories-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .cat-chip {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            background: rgba(3, 218, 198, 0.12);
+            border: 1px solid rgba(3, 218, 198, 0.3);
+            color: var(--secondary-color);
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .toggle-label {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <h2>Diagnostics Chat</h2>
+
+        <div class="toggle-container">
+            <span class="toggle-label">Enable SSC (Narrative)</span>
+            <label class="switch">
+                <input type="checkbox" id="ssc-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div style="margin-top: auto;">
+            <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
+                This interface allows you to query the System Diagnostics API manually. Input an intent to see the
+                structured output. By default, SSC is off and returns raw JSON.
+            </p>
+        </div>
+    </div>
+
+    <div class="main-chat">
+        <div class="chat-container" id="chat">
+            <div class="message system">
+                <div class="status-badge info">System Ready</div>
+                <div>Welcome to the System Diagnostics Chat Interface. How can I assist you with checking system status
+                    today?</div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="query-input" class="chat-input"
+                placeholder="E.g., What is consuming the most memory?" autocomplete="off"
+                onkeypress="handleEnter(event)">
+            <button class="send-btn" onclick="sendQuery()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat');
+        const queryInput = document.getElementById('query-input');
+
+        function appendMessage(role, content, isJson = false, status = null) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+
+            let html = '';
+
+            if (status) {
+                const badgeClass = status === 'normal' ? 'normal' : (status === 'anomaly' ? 'anomaly' : 'info');
+                html += `<div class="status-badge ${badgeClass}">${status}</div><br>`;
+            }
+
+            if (isJson) {
+                const jsonStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+                html += `<div class="json-block">${escapeHtml(jsonStr)}</div>`;
+            } else {
+                html += `<div>${escapeHtml(content)}</div>`;
+            }
+
+            div.innerHTML = html;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return div;
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') {
+                sendQuery();
+            }
+        }
+
+        async function sendQuery() {
+            const query = queryInput.value.trim();
+            if (!query) return;
+
+            queryInput.value = '';
+            appendMessage('user', query);
+
+            const apiUrl = 'http://localhost:8000';
+            const apiKey = 'YOUR_API_KEY_HERE';
+
+            // Loading state
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'message system';
+            loadingMsg.innerHTML = `<span style="display:flex; align-items:center; gap:8px;"><div class="loader"></div> <span>Executing query...</span></span>`;
+            chatContainer.appendChild(loadingMsg);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            const useSsc = document.getElementById('ssc-toggle').checked;
+
+            try {
+                const response = await fetch(`${apiUrl}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey
+                    },
+                    body: JSON.stringify({
+                        intent: query,
+                        model: "generic",
+                        use_ssc: useSsc
+                    })
+                });
+
+                const data = await response.json();
+                chatContainer.removeChild(loadingMsg);
+
+                if (!response.ok) {
+                    appendMessage('system error', `Request failed with status ${response.status}: ${JSON.stringify(data)}`);
+                    return;
+                }
+
+                // Build main response message
+                const div = document.createElement('div');
+                div.className = 'message system';
+                let html = '';
+
+                // Status badge
+                const status = data.status || 'info';
+                const badgeClass = status === 'normal' ? 'normal' : (status === 'anomaly' ? 'anomaly' : 'info');
+                html += `<div class="status-badge ${badgeClass}">${escapeHtml(status)}</div>`;
+
+                // Categories chips
+                if (data.categories && data.categories.length > 0) {
+                    html += `<div class="categories-row">${data.categories.map(c => `<span class="cat-chip">${escapeHtml(c)}</span>`).join('')}</div>`;
+                }
+
+                // Narrative (split off game compat section)
+                if (data.narrative) {
+                    const parts = data.narrative.split('\n\n');
+                    const mainNarrative = parts.filter(p => !p.startsWith('[Red Dead') && !p.startsWith('[GTA') && !p.startsWith('[Cyberpunk') && !p.startsWith('[Fortnite')).join('\n\n');
+                    const gameSection = data.game_compatibility || parts.find(p => p.match(/\[.+\] Can you run/));
+
+                    if (mainNarrative.trim()) {
+                        html += `<div class="narrative-text">${escapeHtml(mainNarrative)}</div>`;
+                    }
+                    if (gameSection) {
+                        html += `<div class="game-compat-card">${escapeHtml(gameSection)}</div>`;
+                    }
+                }
+
+                div.innerHTML = html;
+                chatContainer.appendChild(div);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+
+                // Raw JSON details (collapsed, but expanded if SSC is OFF)
+                const jsonDiv = document.createElement('div');
+                jsonDiv.className = 'message system';
+                const showDetails = (!useSsc || data.status === 'raw') ? 'open' : '';
+                jsonDiv.innerHTML = `<details ${showDetails}><summary style="cursor:pointer;color:var(--text-secondary);font-size:0.8rem;">View raw JSON</summary><div class="json-block">${escapeHtml(JSON.stringify(data, null, 2))}</div></details>`;
+                chatContainer.appendChild(jsonDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            } catch (error) {
+                chatContainer.removeChild(loadingMsg);
+                appendMessage('system error', `Network Error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+
+</html>
